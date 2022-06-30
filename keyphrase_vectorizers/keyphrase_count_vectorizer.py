@@ -70,6 +70,12 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
     custom_pos_tagger: callable, default=None
             A callable function which expects a list of strings in a 'raw_documents' parameter and returns a list of (word token, POS-tag) tuples.
             If this parameter is not None, the custom tagger function is used to tag words with parts-of-speech, while the spaCy pipeline is ignored.
+            
+    max_ngram : int, default=None
+        During fitting ignore keyphrases with more words than the given threshold. If not set, uses maximum length in tagged keywords.
+
+    min_ngram : int, default=1
+        During fitting ignore keyphrases with fewer words than the given threshold. If not set, uses minimum length in tagged keywords.
 
     max_df : int, default=None
         During fitting ignore keyphrases that have a document frequency strictly higher than the given threshold.
@@ -88,8 +94,9 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
 
     def __init__(self, spacy_pipeline: str = 'en_core_web_sm', pos_pattern: str = '<J.*>*<N.*>+',
                  stop_words: Union[str, List[str]] = 'english', lowercase: bool = True, workers: int = 1,
-                 spacy_exclude: List[str] = None, custom_pos_tagger: callable = None,
-                 max_df: int = None, min_df: int = None, binary: bool = False, dtype: np.dtype = np.int64):
+                 spacy_exclude: List[str] = None, custom_pos_tagger: callable = None, min_ngram: int = 1,
+                 max_ngram: int = None, max_df: int = None, min_df: int = None,  binary: bool = False, 
+                 dtype: np.dtype = np.int64):
 
         # triggers a parameter validation
         if not isinstance(min_df, int) and min_df is not None:
@@ -141,8 +148,11 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         self.custom_pos_tagger = custom_pos_tagger
         self.max_df = max_df
         self.min_df = min_df
+        self.max_ngram = max_ngram
+        self.min_ngram = min_ngram
         self.binary = binary
         self.dtype = dtype
+        self.countvectorizer = None
 
     def fit(self, raw_documents: List[str]) -> object:
         """
@@ -174,8 +184,8 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         # compute document frequencies of keyphrases
         if self.max_df or self.min_df:
             document_keyphrase_counts = CountVectorizer(vocabulary=self.keyphrases, ngram_range=(
-                min([len(keyphrase.split()) for keyphrase in self.keyphrases]),
-                max([len(keyphrase.split()) for keyphrase in self.keyphrases])),
+                self.min_ngram or min([len(keyphrase.split()) for keyphrase in self.keyphrases]),
+                self.max_ngram or max([len(keyphrase.split()) for keyphrase in self.keyphrases])),
                                                         lowercase=self.lowercase, binary=self.binary,
                                                         dtype=self.dtype).transform(
                 raw_documents=raw_documents).toarray()
@@ -192,11 +202,15 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
 
         # set n-gram range to zero if no keyphrases could be extracted
         if self.keyphrases:
-            self.max_n_gram_length = max([len(keyphrase.split()) for keyphrase in self.keyphrases])
-            self.min_n_gram_length = min([len(keyphrase.split()) for keyphrase in self.keyphrases])
+            self.max_n_gram_length = self.max_ngram or max([len(keyphrase.split()) for keyphrase in self.keyphrases])
+            self.min_n_gram_length = self.min_ngram or min([len(keyphrase.split()) for keyphrase in self.keyphrases])
         else:
             raise ValueError(
                 "Empty keyphrases. Perhaps the documents do not contain keyphrases that match the 'pos_pattern' parameter, only contain stop words, or you set the 'min_df'/'max_df' parameters too strict.")
+            
+        self.countvectorizer = CountVectorizer(vocabulary=self.keyphrases,
+                                               ngram_range=(self.min_n_gram_length, self.max_n_gram_length),
+                                               lowercase=self.lowercase, binary=self.binary, dtype=self.dtype)
 
         return self
 
@@ -219,11 +233,10 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
 
         # fit
         KeyphraseCountVectorizer.fit(self=self, raw_documents=raw_documents)
+        self.countvectorizer.fit(raw_documents)
 
         # transform
-        return CountVectorizer(vocabulary=self.keyphrases, ngram_range=(self.min_n_gram_length, self.max_n_gram_length),
-                               lowercase=self.lowercase, binary=self.binary, dtype=self.dtype).fit_transform(
-            raw_documents=raw_documents)
+        return self.countvectorizer.transform(raw_documents=raw_documents)
 
     def transform(self, raw_documents: List[str]) -> List[List[int]]:
         """
@@ -246,9 +259,7 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         if not hasattr(self, 'keyphrases'):
             raise NotFittedError("Keyphrases not fitted.")
 
-        return CountVectorizer(vocabulary=self.keyphrases, ngram_range=(self.min_n_gram_length, self.max_n_gram_length),
-                               lowercase=self.lowercase, binary=self.binary, dtype=self.dtype).transform(
-            raw_documents=raw_documents)
+        return self.countvectorizer.transform(raw_documents=raw_documents)
 
     def inverse_transform(self, X: List[List[int]]) -> List[List[str]]:
         """
@@ -269,8 +280,7 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         if not hasattr(self, 'keyphrases'):
             raise NotFittedError("Keyphrases not fitted.")
 
-        return CountVectorizer(vocabulary=self.keyphrases, ngram_range=(self.min_n_gram_length, self.max_n_gram_length),
-                               lowercase=self.lowercase, binary=self.binary, dtype=self.dtype).inverse_transform(X=X)
+        return self.count_vectorizer.inverse_transform(X=X)
 
     @deprecated(
         "get_feature_names() is deprecated in scikit-learn 1.0 and will be removed "
@@ -294,10 +304,7 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                return CountVectorizer(vocabulary=self.keyphrases,
-                                       ngram_range=(self.min_n_gram_length, self.max_n_gram_length),
-                                       lowercase=self.lowercase, binary=self.binary,
-                                       dtype=self.dtype).get_feature_names()
+                return self.count_vectorizer.get_feature_names()
         except AttributeError:
             raise DeprecationWarning("get_feature_names() is deprecated. Please use 'get_feature_names_out()' instead.")
 
@@ -315,5 +322,4 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         if not hasattr(self, 'keyphrases'):
             raise NotFittedError("Keyphrases not fitted.")
 
-        return CountVectorizer(vocabulary=self.keyphrases, ngram_range=(self.min_n_gram_length, self.max_n_gram_length),
-                               lowercase=self.lowercase, binary=self.binary, dtype=self.dtype).get_feature_names_out()
+        return self.countvectorizer.get_feature_names_out()

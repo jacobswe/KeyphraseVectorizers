@@ -9,8 +9,12 @@
 import logging
 import os
 from typing import List, Union
+import itertools
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
 
 import nltk
+from tqdm import tqdm
 import numpy as np
 import psutil
 import scipy.sparse as sp
@@ -182,7 +186,7 @@ class _KeyphraseVectorizerMixin():
 
     def _get_pos_keyphrases(self, document_list: List[str], stop_words: Union[str, List[str]], spacy_pipeline: str,
                             pos_pattern: str, spacy_exclude: List[str], custom_pos_tagger: callable,
-                            lowercase: bool = True, workers: int = 1) -> List[str]:
+                            lowercase: bool = True, workers: int = 1, batches: int = 256) -> List[str]:
         """
         Select keyphrases with part-of-speech tagging from a text document.
         Parameters
