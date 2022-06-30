@@ -74,7 +74,7 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
     max_ngram : int, default=None
         During fitting ignore keyphrases with more words than the given threshold. If not set, uses maximum length in tagged keywords.
 
-    min_ngram : int, default=None
+    min_ngram : int, default=1
         During fitting ignore keyphrases with fewer words than the given threshold. If not set, uses minimum length in tagged keywords.
 
     max_df : int, default=None
@@ -94,26 +94,16 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
 
     def __init__(self, spacy_pipeline: str = 'en_core_web_sm', pos_pattern: str = '<J.*>*<N.*>+',
                  stop_words: Union[str, List[str]] = 'english', lowercase: bool = True, workers: int = 1,
-                 spacy_exclude: List[str] = None, custom_pos_tagger: callable = None, min_ngram: int = None,
+                 spacy_exclude: List[str] = None, custom_pos_tagger: callable = None, min_ngram: int = 1,
                  max_ngram: int = None, max_df: int = None, min_df: int = None,  binary: bool = False, 
                  dtype: np.dtype = np.int64):
-        
-        # triggers a parameter validation
-        if max_ngram and min_ngram and max_df <= min_df:
-            raise ValueError(
-                "'max_ngram' must be > 'min_ngram'"
-            )
-            
-        if max_ngram < 0 or min_ngram <0:
-            raise ValueError(
-                "'min_ngram' and 'max_ngram' must be > 0"
-            )
 
         # triggers a parameter validation
         if not isinstance(min_df, int) and min_df is not None:
             raise ValueError(
                 "'min_df' parameter must be of type int"
             )
+            
         # triggers a parameter validation
         if min_df == 0:
             raise ValueError(
@@ -243,6 +233,18 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         if self.keyphrases:
             self.max_n_gram_length = self.max_ngram or max([len(keyphrase.split()) for keyphrase in self.keyphrases])
             self.min_n_gram_length = self.min_ngram or min([len(keyphrase.split()) for keyphrase in self.keyphrases])
+            
+            # triggers a parameter validation
+            if self.max_n_gram_length <= self.min_n_gram_length:
+                raise ValueError(
+                    "'max_df' must be > 'min_df'"
+                )
+            
+            # triggers a parameter validation
+            if self.max_n_gram_length < 1 or self.min_n_gram_length < 1:
+                raise ValueError(
+                    "'max_df' and 'min_df' must be > 0"
+                )
         else:
             raise ValueError(
                 "Empty keyphrases. Perhaps the documents do not contain keyphrases that match the 'pos_pattern' parameter, only contain stop words, or you set the 'min_df'/'max_df' parameters too strict.")
