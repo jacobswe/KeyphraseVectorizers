@@ -9,6 +9,9 @@
 import logging
 import os
 from typing import List, Union
+import itertools
+from concurrent.futures import ProcessPoolExecutor
+from tqdm import tqdm
 
 import nltk
 import numpy as np
@@ -182,7 +185,7 @@ class _KeyphraseVectorizerMixin():
 
     def _get_pos_keyphrases(self, document_list: List[str], stop_words: Union[str, List[str]], spacy_pipeline: str,
                             pos_pattern: str, spacy_exclude: List[str], custom_pos_tagger: callable,
-                            lowercase: bool = True, workers: int = 1) -> List[str]:
+                            lowercase: bool = True, workers: int = 1, batches: int = 128) -> List[str]:
         """
         Select keyphrases with part-of-speech tagging from a text document.
         Parameters
@@ -345,17 +348,44 @@ class _KeyphraseVectorizerMixin():
             nlp.max_length = max([len(doc) for doc in document_list]) + 100
 
         cp = nltk.RegexpParser('CHUNK: {(' + pos_pattern + ')}')
-        if not custom_pos_tagger:
-            pos_tuples = []
-            for tagged_doc in nlp.pipe(document_list, n_process=workers):
-                pos_tuples.extend([(word.text, word.tag_) for word in tagged_doc])
+        
+        # allow batched subtree processing for parallel processing
+        if batches:
+            document_list = [batch for batch in list(itertools.islice(iterator, batches))]
         else:
-            pos_tuples = custom_pos_tagger(raw_documents=document_list)
-
+            document_list = [document_list]
+        
+        doc_tuples = []
+        for batch in document_list:
+            if not custom_pos_tagger:
+                pos_tuples = []
+                for tagged_doc in nlp.pipe(document_list, n_process=workers):
+                    pos_tuples.extend([(word.text, word.tag_) for word in tagged_doc])
+            else:
+                pos_tuples = custom_pos_tagger(raw_documents=document_list)
+            doc_tuples.append(pos_tuples)
+        
+        # temporary
+        workers = -1
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            results = list(
+                tqdm(
+                    executor.map(_process_subtrees, doc_tuples, itertools.repeat(cp)),
+                    total = len(doc_tuples),
+                    desc = 'Searching Keyphrases'
+                )
+            )
+        results = list(set().union(*results))
+        
+        return results
+        
         # extract keyphrases that match the NLTK RegexpParser filter
-        keyphrases = []
+    
+    def _process_subtrees(pos_tuples, cp):
+        keyphrases = set()
         # prefix_list = [stop_word + ' ' for stop_word in stop_words_list]
         # suffix_list = [' ' + stop_word for stop_word in stop_words_list]
+        
         tree = cp.parse(pos_tuples)
         for subtree in tree.subtrees(filter=lambda tuple: tuple.label() == 'CHUNK'):
             # join candidate keyphrase from single words
@@ -376,9 +406,6 @@ class _KeyphraseVectorizerMixin():
 
             # do not include single keywords that are actually stopwords
             if keyphrase.lower() not in stop_words_list:
-                keyphrases.append(keyphrase)
+                keyphrases.add(keyphrase)
 
-        # remove potential empty keyphrases
-        keyphrases = [keyphrase for keyphrase in keyphrases if keyphrase != '']
-
-        return list(set(keyphrases))
+        return keyphrases.discard('')
