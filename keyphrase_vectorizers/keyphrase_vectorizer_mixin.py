@@ -347,10 +347,6 @@ class _KeyphraseVectorizerMixin():
         # (should only be done if parser and ner are not used due to memory issues)
         if not custom_pos_tagger:
             nlp.max_length = max([len(doc) for doc in document_list]) + 100
-            
-        logger = logging.getLogger('KeyphraseVectorizer')
-        
-        logger.info('Creating Regex Parses')
         
         cp = nltk.RegexpParser('CHUNK: {(' + pos_pattern + ')}')
         
@@ -367,26 +363,11 @@ class _KeyphraseVectorizerMixin():
         else:
             document_list = [document_list]
         
-        # temporary
-        workers = -1
-        if workers == -1:
-            workers = multiprocessing.cpu_count()
-            
-        with ProcessPoolExecutor(max_workers=workers) as executor:
-            results = list(
-                tqdm(
-                    executor.map(
-                        self._process_subtrees, 
-                        document_list, itertools.repeat(cp), 
-                        itertools.repeat(lowercase),
-                        itertools.repeat(stop_words_list)
-                    ),
-                    total = len(document_list),
-                    desc = 'Searching Keyphrases'
-                )
-            )
-            
-        results = list(set().union(*results))
+        results = []
+        for batch in document_list:
+            results.append(self._process_subtrees(batch, cp, lowercase, stop_words_list))
+        results = set().union(*results)
+        
         print(f'Found {len(results)} candidate phrases')
         
         return results
