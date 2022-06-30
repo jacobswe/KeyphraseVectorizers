@@ -351,7 +351,7 @@ class _KeyphraseVectorizerMixin():
         
         # allow batched subtree processing for parallel processing
         if batches:
-            document_list = [batch for batch in list(itertools.islice(iterator, batches))]
+            document_list = [batch for batch in list(itertools.islice(iter(document_list), batches))]
         else:
             document_list = [document_list]
         
