@@ -70,6 +70,12 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
     custom_pos_tagger: callable, default=None
             A callable function which expects a list of strings in a 'raw_documents' parameter and returns a list of (word token, POS-tag) tuples.
             If this parameter is not None, the custom tagger function is used to tag words with parts-of-speech, while the spaCy pipeline is ignored.
+            
+    max_ngram : int, default=None
+        During fitting ignore keyphrases with more words than the given threshold. If not set, uses maximum length in tagged keywords.
+
+    min_ngram : int, default=None
+        During fitting ignore keyphrases with fewer words than the given threshold. If not set, uses minimum length in tagged keywords.
 
     max_df : int, default=None
         During fitting ignore keyphrases that have a document frequency strictly higher than the given threshold.
@@ -88,8 +94,20 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
 
     def __init__(self, spacy_pipeline: str = 'en_core_web_sm', pos_pattern: str = '<J.*>*<N.*>+',
                  stop_words: Union[str, List[str]] = 'english', lowercase: bool = True, workers: int = 1,
-                 spacy_exclude: List[str] = None, custom_pos_tagger: callable = None,
-                 max_df: int = None, min_df: int = None, binary: bool = False, dtype: np.dtype = np.int64):
+                 spacy_exclude: List[str] = None, custom_pos_tagger: callable = None, min_ngram: int = None,
+                 max_ngram: int = None, max_df: int = None, min_df: int = None,  binary: bool = False, 
+                 dtype: np.dtype = np.int64):
+        
+        # triggers a parameter validation
+        if max_ngram and min_ngram and max_df <= min_df:
+            raise ValueError(
+                "'max_ngram' must be > 'min_ngram'"
+            )
+            
+        if max_ngram < 0 or min_ngram <0:
+            raise ValueError(
+                "'min_ngram' and 'max_ngram' must be > 0"
+            )
 
         # triggers a parameter validation
         if not isinstance(min_df, int) and min_df is not None:
@@ -141,6 +159,8 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         self.custom_pos_tagger = custom_pos_tagger
         self.max_df = max_df
         self.min_df = min_df
+        self.max_ngram = max_ngram
+        self.min_ngram = min_ngram
         self.binary = binary
         self.dtype = dtype
 
@@ -192,8 +212,8 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
 
         # set n-gram range to zero if no keyphrases could be extracted
         if self.keyphrases:
-            self.max_n_gram_length = max([len(keyphrase.split()) for keyphrase in self.keyphrases])
-            self.min_n_gram_length = min([len(keyphrase.split()) for keyphrase in self.keyphrases])
+            self.max_n_gram_length = self.max_ngram or max([len(keyphrase.split()) for keyphrase in self.keyphrases])
+            self.min_n_gram_length = self.min_ngram or min([len(keyphrase.split()) for keyphrase in self.keyphrases])
         else:
             raise ValueError(
                 "Empty keyphrases. Perhaps the documents do not contain keyphrases that match the 'pos_pattern' parameter, only contain stop words, or you set the 'min_df'/'max_df' parameters too strict.")
