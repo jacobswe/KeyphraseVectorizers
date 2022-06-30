@@ -178,7 +178,21 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         self : object
             Fitted vectorizer.
         """
-
+        
+        logger = logging.getLogger('KeyphraseVectorizer')
+        logger.setLevel(logging.WARNING)
+        sh = logging.StreamHandler()
+        sh.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logger.addHandler(sh)
+        logger.setLevel(logging.DEBUG)
+        
+        logger.info(
+            'Fitting...'
+        )
+        
+        logger.debug('Generating Key Phrases...')
+                
         self.keyphrases = self._get_pos_keyphrases(document_list=raw_documents,
                                                    stop_words=self.stop_words,
                                                    spacy_pipeline=self.spacy_pipeline,
@@ -186,11 +200,20 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
                                                    lowercase=self.lowercase, workers=self.workers,
                                                    spacy_exclude=self.spacy_exclude,
                                                    custom_pos_tagger=self.custom_pos_tagger)
+        
+        logger.debug('Key Phrases Generated.')
+        
+        logger.debug('Cleaning Key Phrases...')
 
         # remove keyphrases that have more than 8 words, as they are probably no real keyphrases
         # additionally this prevents memory issues during transformation to a document-keyphrase matrix
         self.keyphrases = [keyphrase for keyphrase in self.keyphrases if len(keyphrase.split()) <= 8]
-
+        
+        logger.debug(f'Key Phrases cleaned.')
+        logger.debug(f'Total Phrases: {len(self.keyphrases)}, Max Length: {max([len(keyphrase.split()) for keyphrase in self.keyphrases])}')
+        
+        logger.debug('Filtering Min Max...')
+        
         # compute document frequencies of keyphrases
         if self.max_df or self.min_df:
             document_keyphrase_counts = CountVectorizer(vocabulary=self.keyphrases, ngram_range=(
@@ -201,7 +224,9 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
                 raw_documents=raw_documents).toarray()
 
             document_frequencies = self._document_frequency(document_keyphrase_counts)
-
+            
+        logger.debug('Document Frequencies Computed.')
+        
         # remove keyphrases with document frequencies < min_df and document frequencies > max_df
         if self.max_df:
             self.keyphrases = [keyphrase for index, keyphrase in enumerate(self.keyphrases) if
@@ -209,7 +234,11 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         if self.min_df:
             self.keyphrases = [keyphrase for index, keyphrase in enumerate(self.keyphrases) if
                                (document_frequencies[index] >= self.min_df)]
-
+            
+        logger.debug(f'Reduction Complete. New Total Phrases: {len(self.keyphrases)}')
+        
+        logger.debug('Setting Min Max n_gram')
+        
         # set n-gram range to zero if no keyphrases could be extracted
         if self.keyphrases:
             self.max_n_gram_length = self.max_ngram or max([len(keyphrase.split()) for keyphrase in self.keyphrases])
@@ -217,6 +246,8 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         else:
             raise ValueError(
                 "Empty keyphrases. Perhaps the documents do not contain keyphrases that match the 'pos_pattern' parameter, only contain stop words, or you set the 'min_df'/'max_df' parameters too strict.")
+            
+        logger.debug(f'Min Max Ngram Set - Min: {self.min_n_gram_length}, Max: {self.max_n_gram_length}')
 
         return self
 
@@ -236,9 +267,21 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         X : array of shape (n_samples, n_features)
             Document-keyphrase matrix.
         """
-
+        
+        logger = logging.getLogger('KeyphraseVectorizer')
+        logger.setLevel(logging.WARNING)
+        sh = logging.StreamHandler()
+        sh.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logger.addHandler(sh)
+        logger.setLevel(logging.DEBUG)
+        
+        logger.info(f'Invoking Fit on {len(raw_documents)} Documents')
+        
         # fit
         KeyphraseCountVectorizer.fit(self=self, raw_documents=raw_documents)
+        
+        logger.info(f'Invoking Count on {len(raw_documents)} Documents')
 
         # transform
         return CountVectorizer(vocabulary=self.keyphrases, ngram_range=(self.min_n_gram_length, self.max_n_gram_length),
@@ -261,6 +304,16 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         X : sparse matrix of shape (n_samples, n_features)
             Document-keyphrase matrix.
         """
+
+        logger = logging.getLogger('KeyphraseVectorizer')
+        logger.setLevel(logging.WARNING)
+        sh = logging.StreamHandler()
+        sh.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logger.addHandler(sh)
+        logger.setLevel(logging.DEBUG)
+        
+        logger.info(f'Invoking Transform on {len(raw_documents)} Documents')
 
         # triggers a parameter validation
         if not hasattr(self, 'keyphrases'):
