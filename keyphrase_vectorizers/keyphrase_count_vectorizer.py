@@ -156,7 +156,6 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         self.min_ngram = min_ngram
         self.binary = binary
         self.dtype = dtype
-        self.countvectorizer=None
 
     def fit(self, raw_documents: List[str]) -> object:
         """
@@ -252,7 +251,7 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         KeyphraseCountVectorizer.fit(self=self, raw_documents=raw_documents)
 
         # transform
-        return self.countvectorizer.transform(raw_documents=raw_documents)
+        return self.countvectorizer.fit_transform(raw_documents=raw_documents)
 
     def transform(self, raw_documents: List[str]) -> List[List[int]]:
         """
