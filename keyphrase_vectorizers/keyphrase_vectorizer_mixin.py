@@ -392,7 +392,7 @@ class _KeyphraseVectorizerMixin():
         keyphrases = set()
         # prefix_list = [stop_word + ' ' for stop_word in stop_words_list]
         # suffix_list = [' ' + stop_word for stop_word in stop_words_list]
-        
+        print(f'Processing {len(pos_tuples)} tuples')
         tree = cp.parse(pos_tuples)
         for subtree in tree.subtrees(filter=lambda tuple: tuple.label() == 'CHUNK'):
             # join candidate keyphrase from single words
@@ -414,5 +414,7 @@ class _KeyphraseVectorizerMixin():
             # do not include single keywords that are actually stopwords
             if keyphrase.lower() not in stop_words_list:
                 keyphrases.add(keyphrase)
+                
+        print(f'Subtree search complete. Found {len(keyphrases)}.')
 
         return keyphrases.discard('')
