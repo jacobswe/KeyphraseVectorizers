@@ -185,7 +185,7 @@ class _KeyphraseVectorizerMixin():
 
     def _get_pos_keyphrases(self, document_list: List[str], stop_words: Union[str, List[str]], spacy_pipeline: str,
                             pos_pattern: str, spacy_exclude: List[str], custom_pos_tagger: callable,
-                            lowercase: bool = True, workers: int = 1, batches: int = 128) -> List[str]:
+                            lowercase: bool = True, workers: int = 1, batches: int = 256) -> List[str]:
         """
         Select keyphrases with part-of-speech tagging from a text document.
         Parameters
@@ -346,7 +346,11 @@ class _KeyphraseVectorizerMixin():
         # (should only be done if parser and ner are not used due to memory issues)
         if not custom_pos_tagger:
             nlp.max_length = max([len(doc) for doc in document_list]) + 100
-
+            
+        logger = logging.getLogger('KeyphraseVectorizer')
+        
+        logger.info('Creating Regex Parses')
+        
         cp = nltk.RegexpParser('CHUNK: {(' + pos_pattern + ')}')
         
         # allow batched subtree processing for parallel processing
@@ -356,13 +360,13 @@ class _KeyphraseVectorizerMixin():
             document_list = [document_list]
         
         doc_tuples = []
-        for batch in document_list:
+        for batch in tqdm(document_list, desc='Tagging Documents'):
             if not custom_pos_tagger:
                 pos_tuples = []
-                for tagged_doc in nlp.pipe(document_list, n_process=workers):
+                for tagged_doc in nlp.pipe(batch, n_process=workers):
                     pos_tuples.extend([(word.text, word.tag_) for word in tagged_doc])
             else:
-                pos_tuples = custom_pos_tagger(raw_documents=document_list)
+                pos_tuples = custom_pos_tagger(raw_documents=batch)
             doc_tuples.append(pos_tuples)
         
         # temporary
