@@ -104,7 +104,7 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
                 "'max_ngram' must be > 'min_ngram'"
             )
             
-        if max_ngram < 0 or min_ngram <0:
+        if max_ngram and min_ngram and (max_ngram < 0 or min_ngram <0):
             raise ValueError(
                 "'min_ngram' and 'max_ngram' must be > 0"
             )
