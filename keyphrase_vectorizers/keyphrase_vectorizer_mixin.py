@@ -377,7 +377,7 @@ class _KeyphraseVectorizerMixin():
         with ProcessPoolExecutor(max_workers=workers) as executor:
             results = list(
                 tqdm(
-                    executor.map(_process_subtrees, doc_tuples, itertools.repeat(cp)),
+                    executor.map(self._process_subtrees, doc_tuples, itertools.repeat(cp)),
                     total = len(doc_tuples),
                     desc = 'Searching Keyphrases'
                 )
@@ -388,7 +388,7 @@ class _KeyphraseVectorizerMixin():
         
         # extract keyphrases that match the NLTK RegexpParser filter
     
-    def _process_subtrees(pos_tuples, cp):
+    def _process_subtrees(self, pos_tuples, cp):
         keyphrases = set()
         # prefix_list = [stop_word + ' ' for stop_word in stop_words_list]
         # suffix_list = [' ' + stop_word for stop_word in stop_words_list]
