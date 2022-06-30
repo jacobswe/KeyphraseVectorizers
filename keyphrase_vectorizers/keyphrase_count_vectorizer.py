@@ -99,14 +99,7 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
                  max_ngram: int = None, max_df: int = None, min_df: int = None,  binary: bool = False, 
                  dtype: np.dtype = np.int64):
         
-        logger = logging.getLogger('KeyphraseVectorizer')
-        logger.setLevel(logging.WARNING)
-        sh = logging.StreamHandler()
-        sh.setFormatter(logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        logger.addHandler(sh)
-        logger.setLevel(logging.DEBUG)
-        self.logger = logger
+        self.logger = logging.getLogger('KeyphraseVectorizer')
 
         # triggers a parameter validation
         if not isinstance(min_df, int) and min_df is not None:
