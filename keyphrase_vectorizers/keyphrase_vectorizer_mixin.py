@@ -354,45 +354,49 @@ class _KeyphraseVectorizerMixin():
         
         cp = nltk.RegexpParser('CHUNK: {(' + pos_pattern + ')}')
         
-        # allow batched subtree processing for parallel processing
+        if not custom_pos_tagger:
+            pos_tuples = []
+            for tagged_doc in nlp.pipe(document_list, n_process=workers):
+                pos_tuples.append([(word.text, word.tag_) for word in tagged_doc])
+        else:
+            pos_tuples = custom_pos_tagger(raw_documents=document_list)
+            
+                # allow batched subtree processing for parallel processing
         if batches:
-            document_list = [batch for batch in list(itertools.islice(iter(document_list), batches))]
+            document_list = [batch for batch in list(itertools.islice(iter(pos_tuples), batches))]
         else:
             document_list = [document_list]
-        
-        doc_tuples = []
-        for batch in tqdm(document_list, desc='Tagging Documents'):
-            if not custom_pos_tagger:
-                pos_tuples = []
-                for tagged_doc in nlp.pipe(batch, n_process=workers):
-                    pos_tuples.extend([(word.text, word.tag_) for word in tagged_doc])
-            else:
-                pos_tuples = custom_pos_tagger(raw_documents=batch)
-            doc_tuples.append(pos_tuples)
         
         # temporary
         workers = -1
         if workers == -1:
             workers = multiprocessing.cpu_count()
+            
         with ProcessPoolExecutor(max_workers=workers) as executor:
             results = list(
                 tqdm(
-                    executor.map(self._process_subtrees, doc_tuples, itertools.repeat(cp)),
-                    total = len(doc_tuples),
+                    executor.map(
+                        self._process_subtrees, 
+                        document_list, itertools.repeat(cp), 
+                        itertools.repeat(lowercase),
+                        itertools.repeat(stop_words_list)
+                    ),
+                    total = len(document_list),
                     desc = 'Searching Keyphrases'
                 )
             )
+            
         results = list(set().union(*results))
+        print(f'Found {len(results)} candidate phrases')
         
         return results
         
         # extract keyphrases that match the NLTK RegexpParser filter
     
-    def _process_subtrees(self, pos_tuples, cp):
+    def _process_subtrees(self, pos_tuples, cp, lowercase, stop_words_list):
         keyphrases = set()
         # prefix_list = [stop_word + ' ' for stop_word in stop_words_list]
         # suffix_list = [' ' + stop_word for stop_word in stop_words_list]
-        print(f'Processing {len(pos_tuples)} tuples')
         tree = cp.parse(pos_tuples)
         for subtree in tree.subtrees(filter=lambda tuple: tuple.label() == 'CHUNK'):
             # join candidate keyphrase from single words
@@ -415,6 +419,6 @@ class _KeyphraseVectorizerMixin():
             if keyphrase.lower() not in stop_words_list:
                 keyphrases.add(keyphrase)
                 
-        print(f'Subtree search complete. Found {len(keyphrases)}.')
-
-        return keyphrases.discard('')
+        keyphrases.discard('')
+        
+        return keyphrases
