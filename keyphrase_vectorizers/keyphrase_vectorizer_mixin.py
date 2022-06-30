@@ -11,6 +11,7 @@ import os
 from typing import List, Union
 import itertools
 from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
 from tqdm import tqdm
 
 import nltk
