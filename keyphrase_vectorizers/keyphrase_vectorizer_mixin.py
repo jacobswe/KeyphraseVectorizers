@@ -371,6 +371,8 @@ class _KeyphraseVectorizerMixin():
         
         # temporary
         workers = -1
+        if workers == -1:
+            workers = multiprocessing.cpu_count()
         with ProcessPoolExecutor(max_workers=workers) as executor:
             results = list(
                 tqdm(
