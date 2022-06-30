@@ -194,8 +194,8 @@ class KeyphraseCountVectorizer(_KeyphraseVectorizerMixin, BaseEstimator):
         # compute document frequencies of keyphrases
         if self.max_df or self.min_df:
             document_keyphrase_counts = CountVectorizer(vocabulary=self.keyphrases, ngram_range=(
-                min([len(keyphrase.split()) for keyphrase in self.keyphrases]),
-                max([len(keyphrase.split()) for keyphrase in self.keyphrases])),
+                self.min_ngram or min([len(keyphrase.split()) for keyphrase in self.keyphrases]),
+                self.max_ngram or max([len(keyphrase.split()) for keyphrase in self.keyphrases])),
                                                         lowercase=self.lowercase, binary=self.binary,
                                                         dtype=self.dtype).transform(
                 raw_documents=raw_documents).toarray()
