@@ -357,8 +357,6 @@ class _KeyphraseVectorizerMixin():
         else:
             pos_tuples = custom_pos_tagger(raw_documents=document_list)
         
-        self.tokens = pos_tuples
-        
                 # allow batched subtree processing for parallel processing
         if batches:
             document_list = [batch for batch in list(itertools.islice(iter(pos_tuples), batches))]
