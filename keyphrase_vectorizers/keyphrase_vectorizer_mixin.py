@@ -352,11 +352,13 @@ class _KeyphraseVectorizerMixin():
         
         if not custom_pos_tagger:
             pos_tuples = []
-            for tagged_doc in nlp.pipe(document_list, n_process=workers):
+            for tagged_doc in tqdm(nlp.pipe(document_list, n_process=workers), total=len(document_list), desc='Tokenizing'):
                 pos_tuples.append([(word.text, word.tag_) for word in tagged_doc])
         else:
             pos_tuples = custom_pos_tagger(raw_documents=document_list)
-            
+        
+        self.tokens = pos_tuples
+        
                 # allow batched subtree processing for parallel processing
         if batches:
             document_list = [batch for batch in list(itertools.islice(iter(pos_tuples), batches))]
